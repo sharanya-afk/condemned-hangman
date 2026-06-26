@@ -1,0 +1,1904 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Condemned — Hangman</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Special+Elite&family=Share+Tech+Mono&family=Oswald:wght@300;500;700&display=swap" rel="stylesheet">
+
+<style>
+/* ═══════════════════════════════════════════
+   TOKENS — dark condemned aesthetic
+   Typewriter grime meets execution chamber
+═══════════════════════════════════════════ */
+:root {
+  --ink:       #0e0c0b;
+  --paper:     #161412;
+  --aged:      #1e1b18;
+  --grime:     #2a2520;
+  --rust:      #8b2a1a;
+  --blood:     #c0392b;
+  --dried:     #6b1c12;
+  --bone:      #d4c5a9;
+  --ash:       #7a7068;
+  --fog:       #4a4440;
+  --rope:      #c8a96e;
+  --serif:     'Special Elite', cursive;
+  --mono:      'Share Tech Mono', monospace;
+  --sans:      'Oswald', sans-serif;
+  --r:         3px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  background: #0a0908;
+  min-height: 100vh;
+  font-family: var(--mono);
+  color: var(--bone);
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 1rem;
+}
+
+/* ── Paper texture overlay ─────────────────────────────────── */
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  pointer-events: none; z-index: 9999;
+  opacity: 0.6;
+}
+
+/* ── App shell ─────────────────────────────────────────────── */
+#app {
+  width: 100%;
+  max-width: 700px;
+  position: relative;
+}
+
+/* ── Screens ───────────────────────────────────────────────── */
+.screen { display: none; }
+.screen.active { display: block; }
+
+/* ── Blood canvas ──────────────────────────────────────────── */
+#blood-canvas {
+  position: fixed; inset: 0;
+  pointer-events: none;
+  z-index: 500;
+}
+
+/* ═══════════════════════════════════════════
+   TYPOGRAPHY
+═══════════════════════════════════════════ */
+.title-stamp {
+  font-family: var(--serif);
+  font-size: clamp(2.4rem, 8vw, 4rem);
+  color: var(--blood);
+  text-align: center;
+  letter-spacing: 0.12em;
+  line-height: 1;
+  text-shadow:
+    2px 2px 0 var(--dried),
+    0 0 40px rgba(192,57,43,0.3);
+  position: relative;
+}
+
+/* Worn stamp effect */
+.title-stamp::after {
+  content: attr(data-text);
+  position: absolute; inset: 0;
+  color: transparent;
+  -webkit-text-stroke: 1px rgba(192,57,43,0.15);
+  transform: translate(1px,1px) rotate(-0.5deg);
+}
+
+.eyebrow {
+  font-family: var(--mono);
+  font-size: .65rem;
+  letter-spacing: .35em;
+  color: var(--ash);
+  text-transform: uppercase;
+  text-align: center;
+  margin-bottom: .4rem;
+}
+
+.section-rule {
+  border: none;
+  border-top: 1px solid var(--grime);
+  margin: 1.2rem 0;
+}
+.section-rule.blood { border-top-color: var(--dried); }
+
+/* ═══════════════════════════════════════════
+   CARDS / PANELS — feel like worn dossier pages
+═══════════════════════════════════════════ */
+.card {
+  background: var(--aged);
+  border: 1px solid var(--grime);
+  border-radius: var(--r);
+  padding: 1.2rem 1.4rem;
+  margin-bottom: .9rem;
+  position: relative;
+}
+
+.card::before {
+  /* top-left dog-ear */
+  content: '';
+  position: absolute;
+  top: 0; left: 0;
+  border-style: solid;
+  border-width: 0 0 10px 10px;
+  border-color: transparent transparent var(--grime) transparent;
+  opacity: .5;
+}
+
+.card-label {
+  font-family: var(--mono);
+  font-size: .6rem;
+  letter-spacing: .3em;
+  color: var(--ash);
+  text-transform: uppercase;
+  margin-bottom: .7rem;
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+}
+.card-label::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--grime);
+}
+
+/* ═══════════════════════════════════════════
+   FORM ELEMENTS — typewriter aesthetic
+═══════════════════════════════════════════ */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: .4rem;
+  margin-bottom: .8rem;
+}
+
+.field label {
+  font-size: .7rem;
+  letter-spacing: .2em;
+  color: var(--ash);
+  text-transform: uppercase;
+}
+
+input[type=text],
+input[type=password],
+select {
+  background: var(--ink);
+  border: 1px solid var(--fog);
+  border-bottom-color: var(--ash);
+  color: var(--bone);
+  font-family: var(--mono);
+  font-size: .95rem;
+  padding: .55rem .8rem;
+  width: 100%;
+  outline: none;
+  border-radius: var(--r);
+  transition: border-color .15s;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+input[type=text]:focus,
+input[type=password]:focus,
+select:focus {
+  border-color: var(--blood);
+  box-shadow: 0 0 0 2px rgba(192,57,43,.15);
+}
+
+input.big-word {
+  font-size: 1.4rem;
+  letter-spacing: .25em;
+  text-transform: uppercase;
+  text-align: center;
+  padding: .8rem;
+  color: var(--rope);
+}
+
+select option { background: var(--ink); }
+
+.field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: .7rem;
+}
+
+@media (max-width: 440px) { .field-row { grid-template-columns: 1fr; } }
+
+/* ═══════════════════════════════════════════
+   BUTTONS
+═══════════════════════════════════════════ */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .5rem;
+  font-family: var(--mono);
+  font-size: .85rem;
+  letter-spacing: .15em;
+  text-transform: uppercase;
+  padding: .65rem 1.4rem;
+  cursor: pointer;
+  border-radius: var(--r);
+  transition: all .15s;
+  border: 1px solid transparent;
+}
+
+.btn-primary {
+  background: var(--blood);
+  color: #fff;
+  border-color: var(--rust);
+}
+.btn-primary:hover {
+  background: #d44;
+  box-shadow: 0 0 16px rgba(192,57,43,.4);
+}
+.btn-primary:active { transform: translateY(1px); }
+
+.btn-ghost {
+  background: transparent;
+  color: var(--ash);
+  border-color: var(--grime);
+}
+.btn-ghost:hover {
+  color: var(--bone);
+  border-color: var(--fog);
+  background: var(--grime);
+}
+
+.btn-warn {
+  background: transparent;
+  color: var(--blood);
+  border-color: var(--dried);
+}
+.btn-warn:hover { background: rgba(192,57,43,.1); }
+
+.btn-full { width: 100%; }
+
+.btn:disabled {
+  opacity: .35;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* ── Button groups ─────────────────────────────────────────── */
+.btn-group {
+  display: flex;
+  gap: .6rem;
+  flex-wrap: wrap;
+}
+.btn-group .btn { flex: 1; min-width: 120px; }
+
+/* ═══════════════════════════════════════════
+   ROOM CODE DISPLAY
+═══════════════════════════════════════════ */
+.room-code-display {
+  text-align: center;
+  padding: 1.5rem 1rem;
+}
+.room-code-value {
+  font-family: var(--serif);
+  font-size: 3.5rem;
+  color: var(--rope);
+  letter-spacing: .25em;
+  line-height: 1;
+  text-shadow: 0 0 20px rgba(200,169,110,.25);
+}
+.room-code-sub {
+  font-size: .65rem;
+  color: var(--ash);
+  letter-spacing: .3em;
+  margin-top: .5rem;
+  text-transform: uppercase;
+}
+
+/* ═══════════════════════════════════════════
+   SCORE BAR
+═══════════════════════════════════════════ */
+.score-bar {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  background: var(--ink);
+  border: 1px solid var(--grime);
+  border-radius: var(--r);
+  overflow: hidden;
+  margin-bottom: .8rem;
+}
+.score-player {
+  flex: 1;
+  padding: .5rem .8rem;
+  text-align: center;
+}
+.score-player:first-child { border-right: 1px solid var(--grime); }
+.score-name {
+  font-size: .6rem;
+  color: var(--ash);
+  letter-spacing: .25em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.score-num {
+  font-family: var(--sans);
+  font-weight: 700;
+  font-size: 1.8rem;
+  color: var(--bone);
+  line-height: 1;
+}
+.score-num.leading { color: var(--blood); }
+.score-divider {
+  font-family: var(--serif);
+  font-size: 1.2rem;
+  color: var(--fog);
+  padding: 0 .5rem;
+}
+
+/* ── Series dots ───────────────────────────────────────────── */
+.series-dots {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  margin: .4rem 0;
+}
+.s-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  border: 1px solid var(--fog);
+  transition: all .3s;
+}
+.s-dot.p0 { background: var(--blood); border-color: var(--blood); }
+.s-dot.p1 { background: #4a90d9; border-color: #4a90d9; }
+
+/* ═══════════════════════════════════════════
+   GALLOWS SVG CONTAINER
+═══════════════════════════════════════════ */
+.gallows-wrap {
+  display: flex;
+  justify-content: center;
+  margin: .5rem 0;
+  filter: drop-shadow(0 0 12px rgba(139,42,26,.2));
+}
+
+/* ═══════════════════════════════════════════
+   WORD DISPLAY
+═══════════════════════════════════════════ */
+.word-display {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  margin: 1rem 0;
+  min-height: 52px;
+  align-items: flex-end;
+}
+.word-space { width: 20px; }
+.letter-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.letter-char {
+  font-family: var(--sans);
+  font-weight: 700;
+  font-size: 1.7rem;
+  color: var(--bone);
+  min-width: 26px;
+  text-align: center;
+  line-height: 1;
+  transition: all .2s;
+}
+.letter-char.reveal {
+  animation: popIn .25s cubic-bezier(.17,.67,.45,1.6);
+}
+@keyframes popIn {
+  0%   { transform: scale(0.4) translateY(4px); opacity: 0; }
+  100% { transform: scale(1) translateY(0); opacity: 1; }
+}
+.letter-dash {
+  width: 26px;
+  height: 2px;
+  background: var(--blood);
+  border-radius: 1px;
+  transition: background .3s;
+}
+
+/* ═══════════════════════════════════════════
+   KEYBOARD
+═══════════════════════════════════════════ */
+.keyboard {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 5px;
+  max-width: 500px;
+  margin: 0 auto 1rem;
+}
+
+.key {
+  width: 36px; height: 36px;
+  background: var(--aged);
+  border: 1px solid var(--grime);
+  border-bottom: 2px solid var(--fog);
+  color: var(--ash);
+  font-family: var(--mono);
+  font-size: .8rem;
+  cursor: pointer;
+  border-radius: 3px;
+  transition: all .1s;
+  position: relative;
+  text-transform: uppercase;
+  user-select: none;
+}
+.key:hover:not(:disabled) {
+  border-color: var(--blood);
+  color: var(--bone);
+  background: var(--grime);
+  top: -1px;
+}
+.key:active:not(:disabled) {
+  top: 1px;
+  border-bottom-width: 1px;
+}
+.key:disabled { opacity: .2; cursor: not-allowed; }
+.key.hit {
+  background: rgba(50,100,50,.2);
+  border-color: #2a6a2a;
+  color: #5a9a5a;
+}
+.key.miss {
+  background: rgba(100,20,20,.15);
+  border-color: var(--dried);
+  color: var(--dried);
+}
+
+/* ═══════════════════════════════════════════
+   TIMER
+═══════════════════════════════════════════ */
+.timer-wrap { margin: .4rem 0 .2rem; }
+.timer-bar {
+  height: 3px;
+  background: var(--grime);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.timer-fill {
+  height: 100%;
+  background: var(--blood);
+  transition: width .1s linear, background .5s;
+}
+.timer-fill.urgent { background: #ff2222; }
+.timer-label {
+  text-align: center;
+  font-size: .65rem;
+  color: var(--ash);
+  letter-spacing: .2em;
+  margin-top: .2rem;
+}
+
+/* ═══════════════════════════════════════════
+   STATUS / BANNERS
+═══════════════════════════════════════════ */
+.turn-banner {
+  background: rgba(139,42,26,.12);
+  border: 1px solid var(--dried);
+  border-radius: var(--r);
+  padding: .4rem .8rem;
+  font-size: .7rem;
+  letter-spacing: .25em;
+  color: var(--blood);
+  text-align: center;
+  text-transform: uppercase;
+  margin-bottom: .7rem;
+}
+.turn-banner.blue {
+  background: rgba(74,144,217,.1);
+  border-color: #2a5a8a;
+  color: #4a90d9;
+}
+
+.status-label {
+  text-align: center;
+  font-size: .75rem;
+  letter-spacing: .2em;
+  color: var(--ash);
+  margin: .3rem 0;
+  font-family: var(--mono);
+}
+
+.skull-row {
+  display: flex;
+  justify-content: center;
+  gap: 5px;
+  margin: .5rem 0;
+  flex-wrap: wrap;
+}
+.skull-icon { font-size: 1.2rem; transition: all .3s; }
+.skull-icon.dead { filter: grayscale(1); opacity: .25; }
+
+/* ═══════════════════════════════════════════
+   HINT BADGE
+═══════════════════════════════════════════ */
+.hint-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: .5rem;
+  margin: .4rem 0;
+  flex-wrap: wrap;
+}
+.cat-badge {
+  background: rgba(139,42,26,.12);
+  border: 1px solid var(--dried);
+  border-radius: 2px;
+  font-size: .6rem;
+  color: var(--blood);
+  letter-spacing: .25em;
+  padding: 2px 8px;
+  text-transform: uppercase;
+}
+.hint-text {
+  font-size: .7rem;
+  color: #c8a820;
+  letter-spacing: .1em;
+}
+
+/* ═══════════════════════════════════════════
+   SECRECY BADGE
+═══════════════════════════════════════════ */
+.enc-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  background: rgba(74,144,217,.08);
+  border: 1px solid #1a3a5a;
+  border-radius: 2px;
+  font-size: .6rem;
+  color: #4a80b9;
+  letter-spacing: .2em;
+  padding: 3px 8px;
+  text-transform: uppercase;
+}
+.enc-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: #4a90d9;
+  animation: pulse 2s infinite;
+}
+@keyframes pulse {
+  0%,100% { opacity: 1; transform: scale(1); }
+  50%     { opacity: .4; transform: scale(.7); }
+}
+
+/* ═══════════════════════════════════════════
+   RESULT SCREEN
+═══════════════════════════════════════════ */
+.verdict-stamp {
+  font-family: var(--serif);
+  font-size: clamp(2rem, 9vw, 3.2rem);
+  text-align: center;
+  letter-spacing: .1em;
+  line-height: 1;
+  margin: .5rem 0;
+}
+.verdict-stamp.win  { color: #3a9a3a; }
+.verdict-stamp.lose { color: var(--blood); }
+
+.reveal-word {
+  font-family: var(--sans);
+  font-size: clamp(1.2rem, 5vw, 2rem);
+  font-weight: 700;
+  letter-spacing: .3em;
+  color: var(--rope);
+  text-align: center;
+  margin: .6rem 0;
+}
+
+/* ═══════════════════════════════════════════
+   WAITING SPINNER
+═══════════════════════════════════════════ */
+.waiting-wrap {
+  text-align: center;
+  padding: 2rem 1rem;
+}
+.noose-spin {
+  font-size: 2.5rem;
+  display: inline-block;
+  animation: swing 2s ease-in-out infinite;
+  transform-origin: top center;
+}
+@keyframes swing {
+  0%,100% { transform: rotate(-15deg); }
+  50%     { transform: rotate(15deg); }
+}
+.waiting-msg {
+  font-size: .75rem;
+  letter-spacing: .3em;
+  color: var(--ash);
+  text-transform: uppercase;
+  margin-top: 1rem;
+}
+
+/* ═══════════════════════════════════════════
+   TOAST / NOTIFICATIONS
+═══════════════════════════════════════════ */
+#toast {
+  position: fixed;
+  bottom: 1.5rem;
+  left: 50%;
+  transform: translateX(-50%) translateY(80px);
+  background: var(--grime);
+  border: 1px solid var(--fog);
+  border-radius: var(--r);
+  padding: .6rem 1.2rem;
+  font-size: .75rem;
+  letter-spacing: .15em;
+  color: var(--bone);
+  z-index: 1000;
+  transition: transform .3s cubic-bezier(.17,.67,.45,1.3);
+  white-space: nowrap;
+  text-transform: uppercase;
+}
+#toast.show { transform: translateX(-50%) translateY(0); }
+#toast.error { border-color: var(--dried); color: var(--blood); }
+
+/* ═══════════════════════════════════════════
+   CONNECTION STATUS
+═══════════════════════════════════════════ */
+.conn-dot {
+  display: inline-block;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: #3a8a3a;
+  vertical-align: middle;
+  margin-right: .3rem;
+  box-shadow: 0 0 5px #3a8a3a;
+}
+.conn-dot.off { background: var(--blood); box-shadow: 0 0 5px var(--blood); }
+
+/* ═══════════════════════════════════════════
+   MISC
+═══════════════════════════════════════════ */
+.text-center { text-align: center; }
+.text-sm     { font-size: .72rem; color: var(--ash); letter-spacing: .15em; }
+.mt-1        { margin-top: .5rem; }
+.mt-2        { margin-top: 1rem; }
+.mb-1        { margin-bottom: .5rem; }
+
+.divider-label {
+  display: flex;
+  align-items: center;
+  gap: .7rem;
+  color: var(--fog);
+  font-size: .65rem;
+  letter-spacing: .3em;
+  text-transform: uppercase;
+  margin: .8rem 0;
+}
+.divider-label::before,
+.divider-label::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--grime);
+}
+</style>
+</head>
+
+<body>
+<canvas id="blood-canvas"></canvas>
+<div id="toast"></div>
+
+<div id="app">
+
+  <!-- ══════════════════════ SCREEN: MENU ══════════════════════ -->
+  <div id="screen-menu" class="screen active">
+    <div style="padding: 2rem 1rem 1rem">
+      <p class="eyebrow">condemned</p>
+      <h1 class="title-stamp" data-text="HANGMAN">HANGMAN</h1>
+      <p class="eyebrow" style="margin-top:.4rem; color: var(--dried)">two-player · one guess · no mercy</p>
+
+      <div style="max-width:380px;margin:1.8rem auto 0">
+        <div class="card">
+          <div class="card-label">your identity</div>
+          <div class="field">
+            <label>Your name</label>
+            <input type="text" id="menu-name" placeholder="Enter your name…" maxlength="16" autocomplete="off">
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-label">game settings</div>
+          <div class="field-row">
+            <div class="field">
+              <label>Wrong guesses</label>
+              <select id="menu-maxwrong">
+                <option value="3">3 — brutal</option>
+                <option value="4">4 — harsh</option>
+                <option value="5">5 — standard</option>
+                <option value="6" selected>6 — classic</option>
+                <option value="8">8 — lenient</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Timer (per guess)</label>
+              <select id="menu-timer">
+                <option value="0">Off</option>
+                <option value="20">20 sec</option>
+                <option value="30">30 sec</option>
+                <option value="45">45 sec</option>
+                <option value="60">60 sec</option>
+              </select>
+            </div>
+          </div>
+          <div class="field">
+            <label>Series length</label>
+            <select id="menu-series">
+              <option value="0">Single round</option>
+              <option value="3">Best of 3</option>
+              <option value="5">Best of 5</option>
+              <option value="7">Best of 7</option>
+            </select>
+          </div>
+        </div>
+
+        <button class="btn btn-primary btn-full" onclick="createRoom()">⚰ Create Room</button>
+
+        <div class="divider-label">or join existing</div>
+
+        <div class="card">
+          <div class="card-label">join a room</div>
+          <div class="field">
+            <label>Room code</label>
+            <input type="text" id="join-code" placeholder="e.g. A3F7B2" maxlength="6"
+              style="text-transform:uppercase;letter-spacing:.4em;font-size:1.2rem;text-align:center"
+              autocomplete="off">
+          </div>
+          <button class="btn btn-ghost btn-full" onclick="joinRoom()">Enter the Chamber</button>
+        </div>
+
+        <p class="text-sm text-center mt-1">
+          <span class="conn-dot" id="conn-dot"></span>
+          <span id="conn-label">connecting…</span>
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════ SCREEN: WAITING ══════════════════════ -->
+  <div id="screen-waiting" class="screen">
+    <div style="padding: 2rem 1rem">
+      <p class="eyebrow">condemned</p>
+      <h1 class="title-stamp" data-text="WAITING">WAITING</h1>
+
+      <div style="max-width:380px;margin:1.5rem auto 0">
+        <div class="card room-code-display">
+          <div class="card-label">room code — share this</div>
+          <div class="room-code-value" id="waiting-code">——</div>
+          <div class="room-code-sub">Send this code to your opponent</div>
+          <button class="btn btn-ghost btn-full mt-2" onclick="copyRoomCode()">Copy Code</button>
+        </div>
+
+        <div class="waiting-wrap">
+          <div class="noose-spin">🪢</div>
+          <p class="waiting-msg">Awaiting the condemned…</p>
+        </div>
+
+        <button class="btn btn-warn btn-full" onclick="goMenu()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════ SCREEN: WORD ENTRY ══════════════════════ -->
+  <div id="screen-word-entry" class="screen">
+    <div style="padding: 1.5rem 1rem">
+      <div id="we-score-bar"></div>
+      <div class="turn-banner" id="we-banner">— — —</div>
+
+      <div style="max-width:420px;margin:0 auto">
+        <div id="we-setter-view">
+          <div class="card">
+            <div class="card-label">word of doom</div>
+            <div class="field">
+              <input type="text" id="we-word" class="big-word"
+                placeholder="TYPE YOUR WORD" autocomplete="off" autocorrect="off" spellcheck="false">
+            </div>
+            <p class="text-sm">Letters and spaces only. Your opponent will never see this until round ends.</p>
+          </div>
+
+          <div class="card">
+            <div class="card-label">pick random instead</div>
+            <div class="field-row">
+              <div class="field">
+                <label>Category</label>
+                <select id="we-category">
+                  <option>Movies &amp; TV</option>
+                  <option>Video Games</option>
+                  <option>Science &amp; Tech</option>
+                </select>
+              </div>
+              <div style="display:flex;align-items:flex-end">
+                <button class="btn btn-ghost btn-full" onclick="pickRandom()">Random</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-label">optional hint (costs +1 wrong guess)</div>
+            <div class="field">
+              <input type="text" id="we-hint" placeholder="A cryptic clue for your opponent…" maxlength="60">
+            </div>
+          </div>
+
+          <div style="text-align:center;margin-bottom:.8rem">
+            <div class="enc-badge">
+              <div class="enc-dot"></div>
+              kept secret until the round ends
+            </div>
+          </div>
+
+          <button class="btn btn-primary btn-full" id="we-submit" onclick="submitWord()">
+            ☠ Send Word
+          </button>
+        </div>
+
+        <div id="we-guesser-view" style="display:none">
+          <div class="waiting-wrap">
+            <div class="noose-spin">⛓</div>
+            <p class="waiting-msg">Your opponent is choosing a word…</p>
+            <p class="text-sm mt-2">You'll get one shot to call it outright, or guess it letter by letter.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════ SCREEN: GAME ══════════════════════ -->
+  <div id="screen-game" class="screen">
+    <div style="padding: 1.2rem 1rem">
+
+      <div id="g-score-bar"></div>
+      <div id="g-series-dots"></div>
+      <div class="turn-banner" id="g-banner">— — —</div>
+
+      <!-- Timer (only for guesser) -->
+      <div id="g-timer" style="display:none" class="timer-wrap">
+        <div class="timer-bar">
+          <div class="timer-fill" id="g-timer-fill" style="width:100%"></div>
+        </div>
+        <div class="timer-label" id="g-timer-label">0:30</div>
+      </div>
+
+      <!-- Gallows -->
+      <div class="gallows-wrap" id="g-gallows"></div>
+
+      <!-- Category + hint row -->
+      <div class="hint-row" id="g-hint-row">
+        <span class="cat-badge" id="g-cat-badge">—</span>
+        <button class="btn btn-ghost" id="g-hint-btn"
+          style="font-size:.6rem;padding:2px 10px;letter-spacing:.15em;display:none"
+          onclick="useHint()">use hint</button>
+        <span class="hint-text" id="g-hint-text" style="display:none"></span>
+      </div>
+
+      <!-- Word display -->
+      <div class="word-display" id="g-word"></div>
+      <div class="status-label" id="g-status">— / — wrong</div>
+      <div class="skull-row" id="g-skulls"></div>
+
+      <!-- Keyboard (only interactive for guesser) -->
+      <div class="keyboard" id="g-keyboard"></div>
+
+      <!-- Guess the whole word — one shot only -->
+      <div id="g-wordguess-wrap" class="card" style="margin-top:.8rem;display:none">
+        <div class="card-label">call the word — one guess, no second chances</div>
+        <div class="field-row">
+          <div class="field">
+            <input type="text" id="g-wordguess-input" placeholder="TYPE THE FULL WORD"
+              autocomplete="off" autocorrect="off" spellcheck="false"
+              onkeydown="if(event.key==='Enter') guessWholeWord()">
+          </div>
+          <div style="display:flex;align-items:flex-end">
+            <button class="btn btn-warn btn-full" id="g-wordguess-btn" onclick="guessWholeWord()">Guess ☠</button>
+          </div>
+        </div>
+        <p class="text-sm mt-1" style="color:var(--dried)">Guess wrong and it's over instantly — no more letters.</p>
+      </div>
+      <p class="text-sm mt-1" id="g-wordguess-used-msg" style="display:none;text-align:center;color:var(--dried)">
+        Whole-word guess already used this round.
+      </p>
+
+      <!-- Setter waiting message -->
+      <div id="g-setter-wait" style="display:none;text-align:center">
+        <p class="text-sm">Watching them guess…</p>
+        <p class="text-sm mt-1" style="color:var(--dried)" id="g-key-display"></p>
+      </div>
+
+      <div style="text-align:center;margin-top:.5rem">
+        <button class="btn btn-warn" id="g-surrender-btn"
+          style="font-size:.65rem;padding:.35rem 1rem;display:none"
+          onclick="surrender()">surrender</button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════════════════════ SCREEN: RESULT ══════════════════════ -->
+  <div id="screen-result" class="screen">
+    <div style="padding: 1.5rem 1rem">
+      <div style="max-width:420px;margin:0 auto;text-align:center">
+        <div class="verdict-stamp" id="r-verdict">—</div>
+        <p class="text-sm mt-1" id="r-sub" style="letter-spacing:.25em">—</p>
+
+        <hr class="section-rule blood mt-2">
+
+        <div class="card" style="text-align:center;margin-top:1rem">
+          <div class="card-label">the word was</div>
+          <div class="reveal-word" id="r-word">—</div>
+        </div>
+
+        <div id="r-score-bar" style="margin-top:.8rem"></div>
+        <div id="r-series-dots" style="margin-top:.3rem"></div>
+
+        <div class="btn-group mt-2">
+          <button class="btn btn-primary" id="r-next-btn" onclick="nextRound()" style="display:none">Next Round ☠</button>
+          <button class="btn btn-ghost" onclick="goMenu()">Main Menu</button>
+        </div>
+        <p class="text-sm mt-1" id="r-waiting-msg" style="display:none">Waiting for opponent…</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════ SCREEN: SERIES END ══════════════════════ -->
+  <div id="screen-series-end" class="screen">
+    <div style="padding: 1.5rem 1rem">
+      <div style="max-width:420px;margin:0 auto;text-align:center">
+        <p class="eyebrow">the verdict</p>
+        <h1 class="title-stamp" id="se-winner" style="margin-top:.5rem">—</h1>
+        <p class="text-sm mt-1" style="letter-spacing:.25em;color:var(--ash)">claims dominion over the gallows</p>
+
+        <div id="se-score-bar" style="margin-top:1.2rem"></div>
+        <div class="gallows-wrap mt-2" id="se-gallows"></div>
+
+        <div class="btn-group mt-2">
+          <button class="btn btn-primary" onclick="playAgain()">Play Again ☠</button>
+          <button class="btn btn-ghost" onclick="goMenu()">Main Menu</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- #app -->
+
+<!-- ═══════════════════════════════════════════
+     JAVASCRIPT
+═══════════════════════════════════════════ -->
+<script>
+/* ══════════════════════════════════════════════════════════════
+   WORD BANKS
+══════════════════════════════════════════════════════════════ */
+const WORDS = {
+  'Movies & TV':    ['INCEPTION','GODFATHER','JOKER','PARASITE','INTERSTELLAR','BREAKING BAD','WESTWORLD','CHERNOBYL','SHUTTER ISLAND','SILENCE OF THE LAMBS','THE DEPARTED','DARK KNIGHT','PULP FICTION','REQUIEM FOR A DREAM'],
+  'Video Games':    ['BLOODBORNE','DARK SOULS','SEKIRO','HOLLOW KNIGHT','DEAD SPACE','OUTLAST','AMNESIA','RESIDENT EVIL','SILENT HILL','LIMBO','SOMA','ALIEN ISOLATION','VISAGE','CONTROL'],
+  'Science & Tech': ['ENTROPY','SINGULARITY','QUANTUM ENTANGLEMENT','BLACK HOLE','ANTIMATTER','CRYPTOGRAPHY','NECROSIS','MITOSIS','PARASITISM','NEUROPLASTICITY'],
+};
+
+/* ══════════════════════════════════════════════════════════════
+   STATE
+══════════════════════════════════════════════════════════════ */
+let ws         = null;
+let myIdx      = null;    // 0 or 1
+let roomCode   = null;
+let serverState = {};
+let timerInterval = null;
+let nextRoundReady = false; // did I click next round?
+
+/* ══════════════════════════════════════════════════════════════
+   WS CONNECTION
+══════════════════════════════════════════════════════════════ */
+function connectWS() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  const url   = `${proto}://${location.host}`;
+  ws = new WebSocket(url);
+
+  ws.onopen  = () => updateConnStatus(true);
+  ws.onclose = () => { updateConnStatus(false); ws = null; setTimeout(connectWS, 3000); };
+  ws.onerror = () => ws.close();
+  ws.onmessage = e => handleMessage(JSON.parse(e.data));
+}
+
+function updateConnStatus(on) {
+  const dot = document.getElementById('conn-dot');
+  const lbl = document.getElementById('conn-label');
+  if (!dot) return;
+  dot.className = 'conn-dot' + (on ? '' : ' off');
+  lbl.textContent = on ? 'connected' : 'reconnecting…';
+}
+
+function send(obj) {
+  if (ws && ws.readyState === 1) ws.send(JSON.stringify(obj));
+}
+
+/* ══════════════════════════════════════════════════════════════
+   MESSAGE HANDLER
+══════════════════════════════════════════════════════════════ */
+async function handleMessage(msg) {
+  switch (msg.type) {
+
+    case 'room_created':
+      myIdx    = 0;
+      roomCode = msg.code;
+      showScreen('waiting');
+      document.getElementById('waiting-code').textContent = msg.code;
+      break;
+
+    case 'joined_room':
+      myIdx    = 1;
+      roomCode = msg.code;
+      serverState = msg.state;
+      break;
+
+    case 'game_start':
+      serverState = msg.state;
+      showWordEntry();
+      break;
+
+    case 'word_set':
+      serverState = msg.state;
+      showGameScreen();
+      break;
+
+    case 'guess_validated':
+      serverState = msg.state;
+      refreshGameScreen(msg.letter, msg.isCorrect, msg.correctPositions);
+      if (serverState.timerOn && myIdx !== serverState.setterIdx) resetTimer();
+      break;
+
+    case 'round_over':
+      serverState = msg.state;
+      stopTimer();
+      if (!msg.won) triggerBlood();
+      setTimeout(() => {
+        if (msg.seriesOver) showSeriesEnd();
+        else showResult();
+      }, msg.won ? 300 : 900);
+      break;
+
+    case 'hint_used':
+      serverState = msg.state;
+      document.getElementById('g-hint-text').textContent = msg.hint;
+      document.getElementById('g-hint-text').style.display = 'inline';
+      document.getElementById('g-hint-btn').style.display  = 'none';
+      refreshGameScreen(null, null, null);
+      break;
+
+    case 'timer_expired':
+      serverState = msg.state;
+      refreshGameScreen(null, null, null);
+      if (myIdx !== serverState.setterIdx) resetTimer();
+      break;
+
+    case 'next_round':
+      serverState = msg.state;
+      nextRoundReady = false;
+      showWordEntry();
+      break;
+
+    case 'opponent_left':
+      toast('Opponent disconnected.', true);
+      stopTimer();
+      break;
+
+    case 'error':
+      toast(msg.msg, true);
+      break;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   SCREEN MANAGEMENT
+══════════════════════════════════════════════════════════════ */
+function showScreen(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-' + name).classList.add('active');
+}
+
+function showWordEntry() {
+  const st = serverState;
+  const isSetter = myIdx === st.setterIdx;
+  const setterName = st.names[st.setterIdx];
+  const guesserName = st.names[1 - st.setterIdx];
+
+  document.getElementById('we-score-bar').innerHTML = scoreBarHTML();
+  document.getElementById('we-banner').textContent =
+    isSetter ? `You choose the word — round ${st.round}` : `${setterName} is choosing the word…`;
+  document.getElementById('we-banner').className = 'turn-banner' + (isSetter ? '' : ' blue');
+
+  document.getElementById('we-setter-view').style.display = isSetter  ? 'block' : 'none';
+  document.getElementById('we-guesser-view').style.display = isSetter ? 'none'  : 'block';
+
+  if (isSetter) {
+    const wi = document.getElementById('we-word');
+    wi.value = '';
+    wi.focus();
+  }
+  showScreen('word-entry');
+}
+
+function showGameScreen() {
+  const st = serverState;
+  const isGuesser = myIdx !== st.setterIdx;
+
+  document.getElementById('g-score-bar').innerHTML   = scoreBarHTML();
+  document.getElementById('g-series-dots').innerHTML = seriesDotsHTML();
+
+  const banner = document.getElementById('g-banner');
+  banner.textContent = isGuesser ? `Your turn to guess — round ${st.round}` : `${st.names[1-st.setterIdx]} is guessing…`;
+  banner.className = 'turn-banner' + (isGuesser ? '' : ' blue');
+
+  // category badge
+  document.getElementById('g-cat-badge').textContent = st.category || '—';
+
+  // hint button
+  if (st.hint && isGuesser && !st.hintUsed) {
+    document.getElementById('g-hint-btn').style.display = 'inline-flex';
+  } else {
+    document.getElementById('g-hint-btn').style.display = 'none';
+  }
+  document.getElementById('g-hint-text').style.display = 'none';
+
+  // surrender / setter wait
+  document.getElementById('g-surrender-btn').style.display  = isGuesser ? 'inline-flex' : 'none';
+  document.getElementById('g-setter-wait').style.display     = isGuesser ? 'none' : 'block';
+
+  // whole-word guess panel
+  refreshWordGuessPanel(isGuesser);
+
+  // timer
+  const timerWrap = document.getElementById('g-timer');
+  if (st.timerOn && isGuesser) {
+    timerWrap.style.display = 'block';
+    startTimer();
+  } else {
+    timerWrap.style.display = 'none';
+  }
+
+  renderGallows();
+  renderWordDisplay();
+  renderSkulls();
+  renderKeyboard(isGuesser);
+
+  showScreen('game');
+}
+
+/* ══════════════════════════════════════════════════════════════
+   GAME RENDER HELPERS
+══════════════════════════════════════════════════════════════ */
+function renderGallows() {
+  document.getElementById('g-gallows').innerHTML = gallowsSVG();
+}
+
+function renderWordDisplay(revealPositions, letter) {
+  const st = serverState;
+  const slots = [];
+  for (let i = 0; i < st.wordLength; i++) {
+    if (st.wordSpaces.includes(i)) {
+      slots.push(`<div class="word-space"></div>`);
+      continue;
+    }
+    const revealed = st.guessed.some(g => {
+      // We track which positions are revealed via correctPositions accumulation
+    });
+    slots.push(`
+      <div class="letter-tile">
+        <div class="letter-char" id="lt-${i}"> </div>
+        <div class="letter-dash" id="ld-${i}"></div>
+      </div>`);
+  }
+  document.getElementById('g-word').innerHTML = slots.join('');
+  // apply known correct positions from st.revealedPositions
+  if (st.revealedPositions) {
+    st.revealedPositions.forEach(({ pos, char }) => {
+      const el = document.getElementById('lt-' + pos);
+      if (el) { el.textContent = char; el.classList.add('reveal'); }
+    });
+  }
+  // if round over, fill everything
+  if (st.revealWord) {
+    st.revealWord.split('').forEach((c, i) => {
+      const el = document.getElementById('lt-' + i);
+      if (el && c !== ' ') el.textContent = c;
+    });
+  }
+}
+
+function refreshGameScreen(letter, isCorrect, correctPositions) {
+  const st = serverState;
+
+  // accumulate revealed positions
+  if (!st.revealedPositions) st.revealedPositions = [];
+  if (letter && correctPositions && correctPositions.length) {
+    correctPositions.forEach(pos => {
+      if (!st.revealedPositions.find(r => r.pos === pos))
+        st.revealedPositions.push({ pos, char: letter });
+    });
+  }
+
+  renderGallows();
+  renderWordDisplay();
+  renderSkulls();
+
+  const isGuesser = myIdx !== st.setterIdx;
+  renderKeyboard(isGuesser);
+  refreshWordGuessPanel(isGuesser);
+
+  document.getElementById('g-status').textContent =
+    `${st.wrongCount} / ${st.maxWrong} wrong`;
+
+  if (letter) flashKey(letter, isCorrect);
+  document.getElementById('g-setter-wait').querySelector('#g-key-display') &&
+    (document.getElementById('g-key-display').textContent =
+      letter ? `Opponent guessed: ${letter} — ${isCorrect ? '✓ correct' : '✗ wrong'}` : '');
+}
+
+/* whole-word guess panel: visible to the guesser only, until spent */
+function refreshWordGuessPanel(isGuesser) {
+  const st = serverState;
+  const wrap   = document.getElementById('g-wordguess-wrap');
+  const used   = document.getElementById('g-wordguess-used-msg');
+  const input  = document.getElementById('g-wordguess-input');
+  const btn    = document.getElementById('g-wordguess-btn');
+
+  if (!isGuesser) {
+    wrap.style.display = 'none';
+    used.style.display = 'none';
+    return;
+  }
+
+  if (st.wholeWordGuessUsed) {
+    wrap.style.display = 'none';
+    used.style.display = 'block';
+  } else {
+    wrap.style.display = 'block';
+    used.style.display = 'none';
+    if (input.disabled) input.value = ''; // clear stale guess from a previous round
+    input.disabled = false;
+    btn.disabled = false;
+  }
+}
+
+function renderSkulls() {
+  const st = serverState;
+  let h = '';
+  for (let i = 0; i < st.maxWrong; i++) {
+    h += `<span class="skull-icon${i < st.wrongCount ? ' dead' : ''}">💀</span>`;
+  }
+  document.getElementById('g-skulls').innerHTML = h;
+}
+
+function renderKeyboard(interactive) {
+  const st = serverState;
+  const keys = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map(c => {
+    const used   = st.guessed.includes(c);
+    const isHit  = used && (st.revealedPositions || []).some(r => r.char === c);
+    const isMiss = used && !isHit;
+    const cls = isHit ? ' hit' : isMiss ? ' miss' : '';
+    const dis = !interactive || used ? 'disabled' : '';
+    return `<button class="key${cls}" ${dis} onclick="guessLetter('${c}')">${c}</button>`;
+  }).join('');
+  document.getElementById('g-keyboard').innerHTML = keys;
+}
+
+function flashKey(letter, isCorrect) {
+  const btn = document.querySelector(`#g-keyboard .key:not([disabled])`);
+  // find by text
+  document.querySelectorAll('#g-keyboard .key').forEach(b => {
+    if (b.textContent === letter) {
+      b.classList.add(isCorrect ? 'hit' : 'miss');
+      b.disabled = true;
+    }
+  });
+}
+
+function scoreBarHTML() {
+  const st = serverState;
+  if (!st.names) return '';
+  const [s0, s1] = st.scores || [0,0];
+  return `<div class="score-bar">
+    <div class="score-player">
+      <div class="score-name">${st.names[0]||'P1'}</div>
+      <div class="score-num${s0>=s1?' leading':''}">${s0}</div>
+    </div>
+    <div class="score-divider">vs</div>
+    <div class="score-player">
+      <div class="score-name">${st.names[1]||'P2'}</div>
+      <div class="score-num${s1>s0?' leading':''}">${s1}</div>
+    </div>
+  </div>`;
+}
+
+function seriesDotsHTML() {
+  const st = serverState;
+  if (!st.seriesMode) return '';
+  const need = Math.ceil(st.seriesMax / 2);
+  let dots = '';
+  let p0filled = 0, p1filled = 0;
+  // fill dots based on scores
+  for (let i = 0; i < st.seriesMax; i++) {
+    if (p0filled < (st.scores||[0,0])[0]) { dots += `<div class="s-dot p0"></div>`; p0filled++; }
+    else if (p1filled < (st.scores||[0,0])[1]) { dots += `<div class="s-dot p1"></div>`; p1filled++; }
+    else dots += `<div class="s-dot"></div>`;
+  }
+  return `<div style="text-align:center;font-size:.6rem;color:var(--ash);letter-spacing:.3em;margin:.2rem 0">FIRST TO ${need}</div>
+          <div class="series-dots">${dots}</div>`;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   REALISTIC HANGMAN SVG
+══════════════════════════════════════════════════════════════ */
+function gallowsSVG() {
+  const w    = serverState.wrongCount || 0;
+  const max  = serverState.maxWrong  || 6;
+  const dead = w >= max;
+
+  const s  = `stroke="#6b1c12" stroke-width="3" stroke-linecap="round"`;
+  const st = `stroke="#d4c5a9" stroke-width="2.5" stroke-linecap="round"`;
+
+  let svg = `<svg width="190" height="220" viewBox="0 0 190 220" xmlns="http://www.w3.org/2000/svg">
+  <!-- ground shadow -->
+  <ellipse cx="95" cy="215" rx="80" ry="5" fill="rgba(0,0,0,0.4)"/>
+  <!-- ground -->
+  <line x1="10" y1="210" x2="180" y2="210" ${s}/>
+  <!-- post -->
+  <rect x="47" y="14" width="7" height="197" rx="2" fill="#5a2e12" stroke="#3a1a0a" stroke-width="1"/>
+  <!-- beam -->
+  <rect x="47" y="14" width="75" height="6" rx="2" fill="#5a2e12" stroke="#3a1a0a" stroke-width="1"/>
+  <!-- brace -->
+  <line x1="47" y1="50" x2="82" y2="14" stroke="#4a2a10" stroke-width="2.5" stroke-linecap="round"/>
+  <!-- rope -->
+  <line x1="116" y1="20" x2="116" y2="38" stroke="#c8a96e" stroke-width="2.5" stroke-linecap="round"/>`;
+
+  if (w >= 1) {
+    // Rope knot
+    svg += `<path d="M112,38 Q116,42 120,38 Q120,44 116,46 Q112,44 112,38Z" fill="none" stroke="#c8a96e" stroke-width="1.5"/>
+    <line x1="116" y1="46" x2="116" y2="52" stroke="#c8a96e" stroke-width="2"/>`;
+    // Head — skull-like shape
+    svg += `<ellipse cx="116" cy="64" rx="15" ry="17" fill="#c8aa82" stroke="#8a6040" stroke-width="1.2"/>
+    <!-- cheekbones -->
+    <path d="M102,66 Q108,72 114,68" fill="none" stroke="#9a7858" stroke-width="0.8" opacity="0.5"/>
+    <path d="M130,66 Q124,72 118,68" fill="none" stroke="#9a7858" stroke-width="0.8" opacity="0.5"/>
+    <!-- neck -->
+    <rect x="112" y="79" width="8" height="9" rx="2" fill="#c8aa82" stroke="#8a6040" stroke-width="0.8"/>
+    <!-- rope burn -->
+    <path d="M110,72 Q116,75 122,72" fill="none" stroke="#7a3a1a" stroke-width="2" opacity="0.6"/>`;
+  }
+
+  if (w >= 2) {
+    // Torso — shirt with detail
+    svg += `<path d="M108,88 Q104,100 106,126 L126,126 Q128,100 124,88 Z" fill="#3a3028" stroke="#1e1812" stroke-width="1.2"/>
+    <!-- collar -->
+    <path d="M112,88 L116,96 L120,88" fill="none" stroke="#4a4038" stroke-width="1"/>
+    <!-- shirt crease lines -->
+    <line x1="111" y1="95" x2="109" y2="120" stroke="#2a2018" stroke-width="0.7" opacity="0.6"/>
+    <line x1="121" y1="95" x2="123" y2="120" stroke="#2a2018" stroke-width="0.7" opacity="0.6"/>
+    <!-- ribs suggestion -->
+    <path d="M108,104 Q116,108 124,104" fill="none" stroke="#2a2018" stroke-width="0.6" opacity="0.4"/>
+    <path d="M107,112 Q116,116 125,112" fill="none" stroke="#2a2018" stroke-width="0.6" opacity="0.4"/>
+    <!-- belt -->
+    <rect x="106" y="122" width="20" height="5" rx="1" fill="#2a1a08" stroke="#1a0a00" stroke-width="0.8"/>`;
+  }
+
+  if (w >= 3) {
+    // Left arm — limp, detailed
+    svg += `<path d="M109,92 Q96,103 90,118" fill="none" stroke="#c8aa82" stroke-width="6" stroke-linecap="round"/>
+    <path d="M90,118 Q86,132 88,145" fill="none" stroke="#c8aa82" stroke-width="5" stroke-linecap="round"/>
+    <!-- sleeve -->
+    <path d="M109,92 Q96,103 90,118" fill="none" stroke="#3a3028" stroke-width="8" stroke-linecap="round" opacity="0.5"/>
+    <!-- left hand -->
+    <ellipse cx="88" cy="148" rx="6" ry="5" fill="#c8aa82" stroke="#8a6040" stroke-width="0.8"/>
+    <path d="M83,147 Q81,150 82,155" fill="none" stroke="#c8aa82" stroke-width="2.5" stroke-linecap="round"/>
+    <path d="M86,148 Q84,153 85,158" fill="none" stroke="#c8aa82" stroke-width="2.5" stroke-linecap="round"/>
+    <path d="M89,149 Q88,154 89,159" fill="none" stroke="#c8aa82" stroke-width="2.5" stroke-linecap="round"/>
+    <path d="M92,148 Q93,153 93,157" fill="none" stroke="#c8aa82" stroke-width="2.5" stroke-linecap="round"/>`;
+  }
+
+  if (w >= 4) {
+    // Right arm
+    svg += `<path d="M123,92 Q136,103 142,118" fill="none" stroke="#c8aa82" stroke-width="6" stroke-linecap="round"/>
+    <path d="M142,118 Q146,132 144,145" fill="none" stroke="#c8aa82" stroke-width="5" stroke-linecap="round"/>
+    <path d="M123,92 Q136,103 142,118" fill="none" stroke="#3a3028" stroke-width="8" stroke-linecap="round" opacity="0.5"/>
+    <!-- right hand -->
+    <ellipse cx="144" cy="148" rx="6" ry="5" fill="#c8aa82" stroke="#8a6040" stroke-width="0.8"/>
+    <path d="M139,147 Q137,150 138,155" fill="none" stroke="#c8aa82" stroke-width="2.5" stroke-linecap="round"/>
+    <path d="M142,148 Q140,153 141,158" fill="none" stroke="#c8aa82" stroke-width="2.5" stroke-linecap="round"/>
+    <path d="M145,149 Q144,154 145,159" fill="none" stroke="#c8aa82" stroke-width="2.5" stroke-linecap="round"/>
+    <path d="M148,148 Q149,153 149,157" fill="none" stroke="#c8aa82" stroke-width="2.5" stroke-linecap="round"/>`;
+  }
+
+  if (w >= 5) {
+    // Left leg
+    svg += `<path d="M110,124 Q106,142 102,158" fill="none" stroke="#3a3028" stroke-width="9" stroke-linecap="round"/>
+    <path d="M102,158 Q98,174 100,188" fill="none" stroke="#c8aa82" stroke-width="7" stroke-linecap="round"/>
+    <!-- left boot -->
+    <path d="M97,186 Q92,190 91,198 Q100,202 110,197 Q108,190 104,186 Z" fill="#1e1208" stroke="#0e0800" stroke-width="1"/>
+    <line x1="93" y1="197" x2="110" y2="197" stroke="#0e0800" stroke-width="1.5"/>`;
+  }
+
+  if (w >= 6) {
+    // Right leg
+    svg += `<path d="M122,124 Q126,142 130,158" fill="none" stroke="#3a3028" stroke-width="9" stroke-linecap="round"/>
+    <path d="M130,158 Q134,174 132,188" fill="none" stroke="#c8aa82" stroke-width="7" stroke-linecap="round"/>
+    <!-- right boot -->
+    <path d="M128,186 Q124,190 124,198 Q133,202 143,197 Q140,190 136,186 Z" fill="#1e1208" stroke="#0e0800" stroke-width="1"/>
+    <line x1="125" y1="197" x2="142" y2="197" stroke="#0e0800" stroke-width="1.5"/>`;
+  }
+
+  if (w >= 7) {
+    svg += `<path d="M108,122 Q116,126 124,122" fill="none" stroke="#2a1a08" stroke-width="2" opacity="0.7"/>`;
+  }
+  if (w >= 8) {
+    svg += `<path d="M112,96 Q115,99 112,102" fill="none" stroke="#8B0000" stroke-width="1.5" opacity="0.8"/>`;
+  }
+
+  // ── FACE ──
+  if (w >= 1) {
+    if (dead) {
+      // Dead face: X eyes, open jaw, lolling tongue
+      svg += `
+      <!-- X left eye -->
+      <line x1="108" y1="58" x2="113" y2="63" stroke="#1a0a00" stroke-width="2"/>
+      <line x1="113" y1="58" x2="108" y2="63" stroke="#1a0a00" stroke-width="2"/>
+      <!-- X right eye -->
+      <line x1="119" y1="58" x2="124" y2="63" stroke="#1a0a00" stroke-width="2"/>
+      <line x1="124" y1="58" x2="119" y2="63" stroke="#1a0a00" stroke-width="2"/>
+      <!-- dark under-eye shadows -->
+      <ellipse cx="110" cy="64" rx="5" ry="2" fill="rgba(0,0,0,0.3)"/>
+      <ellipse cx="122" cy="64" rx="5" ry="2" fill="rgba(0,0,0,0.3)"/>
+      <!-- open jaw — dropped -->
+      <path d="M108,70 Q116,80 124,70 Q122,76 116,78 Q110,76 108,70Z" fill="#2a0a0a" stroke="#6a3030" stroke-width="0.8"/>
+      <!-- upper teeth -->
+      <line x1="110" y1="70" x2="110" y2="74" stroke="#d4c5a9" stroke-width="2" stroke-linecap="round"/>
+      <line x1="114" y1="71" x2="114" y2="75" stroke="#d4c5a9" stroke-width="2" stroke-linecap="round"/>
+      <line x1="118" y1="71" x2="118" y2="75" stroke="#d4c5a9" stroke-width="2" stroke-linecap="round"/>
+      <line x1="122" y1="70" x2="122" y2="74" stroke="#d4c5a9" stroke-width="2" stroke-linecap="round"/>
+      <!-- lolling tongue -->
+      <path d="M113,74 Q116,82 119,74" fill="#c04040" stroke="#903030" stroke-width="0.8"/>
+      <!-- nose -->
+      <path d="M115,64 Q116,69 117,64" fill="none" stroke="#8a6040" stroke-width="1"/>`;
+    } else {
+      const scared = w / max;
+      const ey = Math.max(0.5, 3 - scared * 2);
+      svg += `
+      <!-- left eye -->
+      <ellipse cx="110" cy="61" rx="3.5" ry="${ey}" fill="#1e1412" stroke="#5a3a1a" stroke-width="0.8"/>
+      <circle cx="111" cy="60" r="1" fill="rgba(255,255,255,0.5)"/>
+      <!-- right eye -->
+      <ellipse cx="122" cy="61" rx="3.5" ry="${ey}" fill="#1e1412" stroke="#5a3a1a" stroke-width="0.8"/>
+      <circle cx="123" cy="60" r="1" fill="rgba(255,255,255,0.5)"/>
+      <!-- worried brows -->
+      <path d="M107,57 Q110,${56-scared*2} 113,57" fill="none" stroke="#7a5030" stroke-width="1.5"/>
+      <path d="M119,57 Q122,${56-scared*2} 125,57" fill="none" stroke="#7a5030" stroke-width="1.5"/>
+      <!-- grimacing mouth -->
+      <path d="M110,${71+scared*2} Q116,${68-scared*3} 122,${71+scared*2}" fill="none" stroke="#7a5030" stroke-width="1.2"/>
+      <!-- nose -->
+      <path d="M115,64 Q116,68 117,64" fill="none" stroke="#8a6040" stroke-width="1"/>`;
+    }
+  }
+
+  // foot shadow (once legs appear)
+  if (w >= 5) {
+    svg += `<ellipse cx="100" cy="207" rx="${6+(w>=6?6:0)}" ry="2" fill="rgba(0,0,0,0.35)"/>`;
+  }
+  if (w >= 6) {
+    svg += `<ellipse cx="133" cy="207" rx="8" ry="2" fill="rgba(0,0,0,0.35)"/>`;
+  }
+
+  svg += `</svg>`;
+  return svg;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   BLOOD CANVAS
+══════════════════════════════════════════════════════════════ */
+const bloodCanvas = document.getElementById('blood-canvas');
+const bctx = bloodCanvas.getContext('2d');
+let bloodRAF = null;
+
+function resizeBloodCanvas() {
+  bloodCanvas.width  = window.innerWidth;
+  bloodCanvas.height = window.innerHeight;
+}
+resizeBloodCanvas();
+window.addEventListener('resize', resizeBloodCanvas);
+
+function clearBlood() {
+  if (bloodRAF) { cancelAnimationFrame(bloodRAF); bloodRAF = null; }
+  bctx.clearRect(0, 0, bloodCanvas.width, bloodCanvas.height);
+}
+
+function triggerBlood() {
+  clearBlood();
+  const W = bloodCanvas.width, H = bloodCanvas.height;
+  const cx = W * 0.5, cy = H * 0.28;
+
+  /* ── crack lines ── */
+  const cracks = [];
+  for (let i = 0; i < 22; i++) {
+    const angle = (Math.PI * 2 / 22) * i + (Math.random() - 0.5) * 0.5;
+    const len   = 70 + Math.random() * Math.min(W, H) * 0.5;
+    const segs  = [];
+    let x = cx, y = cy;
+    const steps = Math.floor(len / 10);
+    for (let s = 0; s < steps; s++) {
+      const jit = (Math.random() - 0.5) * 20;
+      x += Math.cos(angle + jit * 0.06) * 10;
+      y += Math.sin(angle + jit * 0.06) * 10;
+      segs.push({ x, y });
+    }
+    cracks.push({
+      segs, progress: 0,
+      width: 0.5 + Math.random() * 3,
+      delay: Math.floor(i * 15 + Math.random() * 20),
+      alpha: 0,
+    });
+  }
+
+  /* ── splat particles ── */
+  const particles = [];
+  for (let i = 0; i < 300; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const spd = 1.5 + Math.random() * 8;
+    particles.push({
+      x: cx + (Math.random() - 0.5) * 60,
+      y: cy + (Math.random() - 0.5) * 60,
+      vx: Math.cos(a) * spd * (0.3 + Math.random()),
+      vy: Math.sin(a) * spd * (0.3 + Math.random()) - Math.random() * 2,
+      r: 2 + Math.random() * 14,
+      alpha: 0.65 + Math.random() * 0.35,
+      landed: false, landY: 0,
+      r_land: 0,
+      col: `${100 + Math.floor(Math.random()*60)},${Math.floor(Math.random()*12)},${Math.floor(Math.random()*8)}`,
+    });
+  }
+
+  /* ── drips ── */
+  const drips = [];
+  for (let i = 0; i < 18; i++) {
+    drips.push({
+      x: W * 0.05 + Math.random() * W * 0.9,
+      y: Math.random() * H * 0.5,
+      vy: 0, speed: 0.6 + Math.random() * 2.5,
+      w: 2 + Math.random() * 7,
+      trail: [], alpha: 0.85,
+      delay: 60 + Math.floor(Math.random() * 220),
+    });
+  }
+
+  let frame = 0;
+  let fadeStart = -1;
+
+  function draw() {
+    bctx.clearRect(0, 0, W, H);
+
+    /* vignette */
+    const vA = fadeStart > 0
+      ? Math.max(0, 0.4 * (1 - (frame - fadeStart) / 70))
+      : Math.min(0.4, frame / 35);
+    const vg = bctx.createRadialGradient(W/2,H/2,H*0.05,W/2,H/2,H*0.85);
+    vg.addColorStop(0, `rgba(0,0,0,0)`);
+    vg.addColorStop(1, `rgba(130,0,0,${vA})`);
+    bctx.fillStyle = vg; bctx.fillRect(0,0,W,H);
+
+    /* cracks */
+    cracks.forEach(c => {
+      if (frame < c.delay) return;
+      c.progress = Math.min(1, (frame - c.delay) / 22);
+      c.alpha    = Math.min(0.9, (frame - c.delay) / 6);
+      const maxSeg = Math.floor(c.progress * c.segs.length);
+      if (maxSeg < 1) return;
+      bctx.beginPath();
+      bctx.moveTo(cx, cy);
+      for (let s = 0; s < maxSeg; s++) bctx.lineTo(c.segs[s].x, c.segs[s].y);
+      bctx.strokeStyle = `rgba(90,0,0,${c.alpha})`;
+      bctx.lineWidth = c.width; bctx.lineCap = 'round';
+      bctx.stroke();
+      /* blood seeping */
+      if (c.progress > 0.25) {
+        bctx.beginPath();
+        bctx.moveTo(cx, cy);
+        const bl = Math.floor(c.progress * 0.75 * c.segs.length);
+        for (let s = 0; s < bl; s++) bctx.lineTo(c.segs[s].x, c.segs[s].y);
+        bctx.strokeStyle = `rgba(180,10,10,${c.alpha * 0.75})`;
+        bctx.lineWidth = c.width * 0.4;
+        bctx.stroke();
+      }
+    });
+
+    /* splat */
+    particles.forEach(p => {
+      if (p.landed) {
+        /* smear on surface */
+        const a = Math.min(p.alpha, fadeStart > 0 ? p.alpha * (1-(frame-fadeStart)/70) : p.alpha);
+        bctx.beginPath();
+        bctx.ellipse(p.x, p.landY, p.r_land * 1.8, p.r_land * 0.45, 0, 0, Math.PI*2);
+        bctx.fillStyle = `rgba(${p.col},${a})`;
+        bctx.fill();
+      } else {
+        p.x += p.vx; p.y += p.vy;
+        p.vy += 0.22; p.vx *= 0.97;
+        if (p.y > H * 0.9) {
+          p.landed = true; p.landY = H * 0.9; p.r_land = p.r;
+        }
+        bctx.beginPath();
+        const ang = Math.atan2(p.vy, p.vx);
+        bctx.ellipse(p.x, p.y, p.r, p.r * 0.6, ang, 0, Math.PI*2);
+        bctx.fillStyle = `rgba(${p.col},${p.alpha})`;
+        bctx.fill();
+      }
+    });
+
+    /* drips */
+    drips.forEach(d => {
+      if (frame < d.delay) return;
+      d.vy += d.speed * 0.06; d.y += d.vy;
+      d.trail.push({ x: d.x, y: d.y });
+      if (d.trail.length > 70) d.trail.shift();
+      const a = fadeStart > 0 ? d.alpha * (1-(frame-fadeStart)/70) : d.alpha;
+      if (d.trail.length > 1) {
+        bctx.beginPath();
+        bctx.moveTo(d.trail[0].x, d.trail[0].y);
+        d.trail.forEach(pt => bctx.lineTo(pt.x, pt.y));
+        bctx.strokeStyle = `rgba(160,5,5,${a*0.9})`;
+        bctx.lineWidth = d.w; bctx.lineCap = 'round';
+        bctx.stroke();
+        const tip = d.trail[d.trail.length-1];
+        bctx.beginPath();
+        bctx.ellipse(tip.x, tip.y + d.w, d.w * 0.9, d.w * 1.3, 0, 0, Math.PI*2);
+        bctx.fillStyle = `rgba(140,0,0,${a})`;
+        bctx.fill();
+      }
+    });
+
+    /* pool */
+    if (frame > 50) {
+      const pA = Math.min(0.6, (frame-50)/90) * (fadeStart>0 ? (1-(frame-fadeStart)/70) : 1);
+      const pg = bctx.createRadialGradient(W/2,H-16,2,W/2,H-16,W*0.38);
+      pg.addColorStop(0, `rgba(170,12,12,${pA})`);
+      pg.addColorStop(1, `rgba(60,0,0,0)`);
+      bctx.beginPath();
+      bctx.ellipse(W/2, H-16, W*0.38, 18, 0, 0, Math.PI*2);
+      bctx.fillStyle = pg; bctx.fill();
+    }
+
+    frame++;
+    if (frame === 240) fadeStart = frame;
+    if (fadeStart > 0 && frame - fadeStart > 75) { clearBlood(); return; }
+    bloodRAF = requestAnimationFrame(draw);
+  }
+  bloodRAF = requestAnimationFrame(draw);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   TIMER
+══════════════════════════════════════════════════════════════ */
+function startTimer() {
+  stopTimer();
+  let left = serverState.timerSecs;
+  const fill  = document.getElementById('g-timer-fill');
+  const label = document.getElementById('g-timer-label');
+
+  timerInterval = setInterval(() => {
+    left--;
+    const pct = (left / serverState.timerSecs) * 100;
+    if (fill)  { fill.style.width = pct + '%'; fill.className = 'timer-fill' + (pct < 25 ? ' urgent' : ''); }
+    if (label) label.textContent = '0:' + String(left).padStart(2,'0');
+    if (left <= 0) {
+      stopTimer();
+      send({ type: 'timer_expired' }); // setter broadcasts the penalty
+    }
+  }, 1000);
+}
+
+function resetTimer() {
+  startTimer();
+}
+
+function stopTimer() {
+  if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   ACTIONS
+══════════════════════════════════════════════════════════════ */
+function createRoom() {
+  const name = document.getElementById('menu-name').value.trim() || 'Player 1';
+  const settings = {
+    maxWrong:   parseInt(document.getElementById('menu-maxwrong').value),
+    timerOn:    parseInt(document.getElementById('menu-timer').value) > 0,
+    timerSecs:  parseInt(document.getElementById('menu-timer').value),
+    seriesMode: parseInt(document.getElementById('menu-series').value) > 0,
+    seriesMax:  parseInt(document.getElementById('menu-series').value),
+  };
+  send({ type: 'create_room', name, settings });
+}
+
+function joinRoom() {
+  const name = document.getElementById('menu-name').value.trim() || 'Player 2';
+  const code = document.getElementById('join-code').value.trim().toUpperCase();
+  if (!code) { toast('Enter a room code.', true); return; }
+  send({ type: 'join_room', name, code });
+}
+
+function copyRoomCode() {
+  navigator.clipboard.writeText(roomCode).then(() => toast('Code copied!'));
+}
+
+function pickRandom() {
+  const cat  = document.getElementById('we-category').value;
+  const pool = WORDS[cat] || Object.values(WORDS).flat();
+  document.getElementById('we-word').value = pool[Math.floor(Math.random() * pool.length)];
+}
+
+async function submitWord() {
+  const raw = document.getElementById('we-word').value.toUpperCase().trim();
+  if (!raw || !/^[A-Z\s]+$/.test(raw)) { toast('Letters and spaces only.', true); return; }
+
+  const hint = document.getElementById('we-hint').value.trim();
+  const cat  = document.getElementById('we-category').value;
+
+  const btn = document.getElementById('we-submit');
+  btn.disabled = true;
+  btn.textContent = '☠ Sending…';
+
+  send({
+    type: 'set_word',
+    word: raw,
+    category: cat,
+    hint,
+  });
+
+  setTimeout(() => {
+    btn.disabled = false;
+    btn.textContent = '☠ Send Word';
+  }, 2000);
+}
+
+function guessLetter(letter) {
+  if (myIdx === serverState.setterIdx) return; // not your turn
+  send({ type: 'guess', letter });
+}
+
+function guessWholeWord() {
+  if (myIdx === serverState.setterIdx) return; // not your turn
+  if (serverState.wholeWordGuessUsed) return;   // already spent
+
+  const input = document.getElementById('g-wordguess-input');
+  const attempt = input.value.toUpperCase().trim();
+  if (!attempt) { toast('Type your guess first.', true); return; }
+
+  if (!confirm(`Guess "${attempt}" as the full word? One shot only — get it wrong and you lose instantly.`)) return;
+
+  document.getElementById('g-wordguess-btn').disabled = true;
+  input.disabled = true;
+
+  send({ type: 'guess_word', word: attempt });
+}
+
+function useHint() {
+  send({ type: 'use_hint' });
+}
+
+function surrender() {
+  if (!confirm('Surrender and reveal the word?')) return;
+  send({ type: 'surrender' });
+}
+
+function nextRound() {
+  nextRoundReady = true;
+  document.getElementById('r-next-btn').style.display    = 'none';
+  document.getElementById('r-waiting-msg').style.display = 'block';
+  send({ type: 'next_round' });
+}
+
+function playAgain() {
+  goMenu();
+}
+
+function goMenu() {
+  stopTimer();
+  clearBlood();
+  serverState = {};
+  showScreen('menu');
+}
+
+/* ══════════════════════════════════════════════════════════════
+   RESULT SCREENS
+══════════════════════════════════════════════════════════════ */
+function showResult() {
+  const st = serverState;
+  const won = (st.roundWon === true && myIdx !== st.setterIdx) ||
+              (st.roundWon === false && myIdx === st.setterIdx);
+
+  document.getElementById('r-verdict').textContent = won ? 'SURVIVED' : 'EXECUTED';
+  document.getElementById('r-verdict').className   = 'verdict-stamp ' + (won ? 'win' : 'lose');
+  document.getElementById('r-sub').textContent     = won
+    ? `${st.names[myIdx]} lives another day`
+    : `${st.names[myIdx]} met their end`;
+
+  document.getElementById('r-word').textContent    = st.revealWord || '—';
+  document.getElementById('r-score-bar').innerHTML = scoreBarHTML();
+  document.getElementById('r-series-dots').innerHTML = seriesDotsHTML();
+
+  // Only one player triggers next_round; the other waits
+  // Let player 0 be the one who triggers
+  if (myIdx === 0) {
+    document.getElementById('r-next-btn').style.display    = 'inline-flex';
+    document.getElementById('r-waiting-msg').style.display = 'none';
+  } else {
+    document.getElementById('r-next-btn').style.display    = 'none';
+    document.getElementById('r-waiting-msg').style.display = 'block';
+  }
+
+  showScreen('result');
+}
+
+function showSeriesEnd() {
+  const st = serverState;
+  const winnerIdx = st.scores[0] > st.scores[1] ? 0 : 1;
+  document.getElementById('se-winner').textContent      = st.names[winnerIdx];
+  document.getElementById('se-score-bar').innerHTML     = scoreBarHTML();
+  serverState.wrongCount = serverState.maxWrong; // show full gallows
+  document.getElementById('se-gallows').innerHTML       = gallowsSVG();
+  showScreen('series-end');
+}
+
+/* ══════════════════════════════════════════════════════════════
+   TOAST
+══════════════════════════════════════════════════════════════ */
+let toastTimer = null;
+function toast(msg, isError = false) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className   = 'show' + (isError ? ' error' : '');
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.className = '', 3000);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   KEYBOARD SHORTCUT — type letters directly
+══════════════════════════════════════════════════════════════ */
+document.addEventListener('keydown', e => {
+  const screen = document.querySelector('.screen.active');
+  if (!screen || screen.id !== 'screen-game') return;
+  if (e.target && e.target.tagName === 'INPUT') return; // typing in the word-guess box
+  const isGuesser = myIdx !== serverState.setterIdx;
+  if (!isGuesser) return;
+  const letter = e.key.toUpperCase();
+  if (/^[A-Z]$/.test(letter) && !serverState.guessed?.includes(letter)) {
+    guessLetter(letter);
+  }
+});
+
+/* ══════════════════════════════════════════════════════════════
+   INIT
+══════════════════════════════════════════════════════════════ */
+connectWS();
+</script>
+</body>
+</html>
