@@ -328,5 +328,5 @@ wss.on('connection', (ws) => {
 });
 
 // ── start ─────────────────────────────────────────────────────────────────
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8000;
 server.listen(PORT, () => console.log(`⚰️  Condemned server running on http://localhost:${PORT}`));
